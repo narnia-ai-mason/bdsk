@@ -34,12 +34,29 @@ enum SpeechAssets {
         if let korean = await SpeechTranscriber.installedLocales.first(where: isKorean) {
             return korean
         }
-        let probe = SpeechTranscriber(locale: requested, preset: .transcription)
+        let probe = transcriber(locale: requested)
         let status = await AssetInventory.status(forModules: [probe])
         if status != .unsupported {
             return requested
         }
         throw DictationSessionError.localeUnsupported
+    }
+
+    static func transcriber(locale: Locale) -> SpeechTranscriber {
+        SpeechTranscriber(
+            locale: locale,
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults],
+            attributeOptions: []
+        )
+    }
+
+    /// Keep the Korean locale reserved so the system does not evict the model.
+    /// `AssetInventory.status` reports `.supported` (not `.installed`) while unreserved,
+    /// even when the files are already on disk.
+    static func retainKoreanReservation() async {
+        guard let locale = try? await resolvedKoreanLocale() else { return }
+        _ = try? await AssetInventory.reserve(locale: locale)
     }
 
     static func phase() async -> SpeechAssetPhase {
@@ -50,18 +67,18 @@ enum SpeechAssets {
         } catch {
             return .unsupported
         }
-        let module = SpeechTranscriber(locale: locale, preset: .transcription)
+        let module = transcriber(locale: locale)
         switch await AssetInventory.status(forModules: [module]) {
         case .installed:
             return .ready
         case .downloading:
             return .downloading
-        case .supported:
-            return .available
         case .unsupported:
             return .unsupported
+        case .supported:
+            return await isKoreanOnDisk() ? .ready : .available
         @unknown default:
-            return .available
+            return await isKoreanOnDisk() ? .ready : .available
         }
     }
 
@@ -71,7 +88,8 @@ enum SpeechAssets {
 
     static func ensureInstalled(onProgress: @MainActor @escaping (Double) -> Void) async throws {
         let locale = try await resolvedKoreanLocale()
-        let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
+        _ = try? await AssetInventory.reserve(locale: locale)
+        let transcriber = transcriber(locale: locale)
         guard let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) else {
             await onProgress(1)
             return
@@ -87,6 +105,10 @@ enum SpeechAssets {
         defer { poll.cancel() }
         try await request.downloadAndInstall()
         await onProgress(1)
+    }
+
+    private static func isKoreanOnDisk() async -> Bool {
+        await SpeechTranscriber.installedLocales.contains(where: isKorean)
     }
 
     private static func isKorean(_ locale: Locale) -> Bool {

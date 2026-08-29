@@ -30,7 +30,6 @@ final class DictationSession {
     private var transcriber: SpeechTranscriber?
     private var continuation: AsyncStream<AnalyzerInput>.Continuation?
     private var resultTask: Task<Void, Never>?
-    private var reservedLocale: Locale?
     private var finals: [String] = []
     private var volatile = ""
     private var onPartial: ((String) -> Void)?
@@ -45,14 +44,8 @@ final class DictationSession {
         let locale = try await SpeechAssets.resolvedKoreanLocale()
         try await SpeechAssets.ensureInstalled { _ in }
         try await AssetInventory.reserve(locale: locale)
-        reservedLocale = locale
 
-        let transcriber = SpeechTranscriber(
-            locale: locale,
-            transcriptionOptions: [],
-            reportingOptions: [.volatileResults],
-            attributeOptions: []
-        )
+        let transcriber = SpeechAssets.transcriber(locale: locale)
         let analyzer = SpeechAnalyzer(
             modules: [transcriber],
             options: .init(priority: .userInitiated, modelRetention: .lingering)
@@ -146,7 +139,7 @@ final class DictationSession {
         _ = await resultTask?.value
         let text = (finals.joined() + volatile)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        await teardown(releaseLocale: true)
+        await teardown()
         return text
     }
 
@@ -158,10 +151,10 @@ final class DictationSession {
             await analyzer.cancelAndFinishNow()
         }
         resultTask?.cancel()
-        await teardown(releaseLocale: true)
+        await teardown()
     }
 
-    private func teardown(releaseLocale: Bool) async {
+    private func teardown() async {
         engine = nil
         analyzer = nil
         transcriber = nil
@@ -171,10 +164,6 @@ final class DictationSession {
         finals = []
         volatile = ""
         partialText = ""
-        if releaseLocale, let locale = reservedLocale {
-            await AssetInventory.release(reservedLocale: locale)
-            reservedLocale = nil
-        }
     }
 
     static func requestPermissions() async throws {

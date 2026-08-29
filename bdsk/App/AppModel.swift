@@ -107,6 +107,7 @@ final class AppModel: HybridHotkeyHandling {
     func refreshSpeechAssets() async {
         if speechAssetPhase == .downloading { return }
         speechAssetPhase = .checking
+        await SpeechAssets.retainKoreanReservation()
         speechAssetPhase = await SpeechAssets.phase()
         if speechAssetPhase == .ready {
             speechAssetProgress = 1
@@ -122,9 +123,6 @@ final class AppModel: HybridHotkeyHandling {
                 self?.speechAssetProgress = value
             }
             speechAssetPhase = await SpeechAssets.phase()
-            if speechAssetPhase != .ready {
-                speechAssetPhase = .ready
-            }
         } catch {
             speechAssetPhase = .failed
             lastMessage = "한국어 엔진을 받지 못했습니다. 네트워크를 확인한 뒤 다시 받아 주세요."
