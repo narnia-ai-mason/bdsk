@@ -22,6 +22,14 @@ struct BdskApp: App {
         .defaultSize(width: 800, height: 600)
         .windowResizability(.contentMinSize)
 
+        Window("처음 설정", id: "setup") {
+            FirstRunView(model: model)
+                .frame(minWidth: 440, minHeight: 520)
+                .background(SettingsWindowChrome())
+        }
+        .defaultSize(width: 480, height: 600)
+        .windowResizability(.contentMinSize)
+
         Settings {
             SettingsView(model: model)
                 .frame(minWidth: 720, minHeight: 520)
@@ -41,6 +49,10 @@ private struct MenuBarLabel: View {
                 AppChrome.openSettingsWindow = {
                     openWindow(id: "settings")
                 }
+                AppChrome.openSetupWindow = {
+                    openWindow(id: "setup")
+                }
+                AppChrome.presentPendingWindows()
             }
     }
 }

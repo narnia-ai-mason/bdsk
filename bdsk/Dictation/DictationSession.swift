@@ -15,7 +15,7 @@ enum DictationSessionError: LocalizedError {
         case .microphoneDenied: return "마이크 권한이 필요합니다."
         case .speechDenied: return "음성 인식 권한이 필요합니다."
         case .noAudioInput: return "마이크 입력 장치를 찾을 수 없습니다."
-        case .localeUnsupported: return "한국어 SpeechAnalyzer 자산을 찾을 수 없습니다."
+        case .localeUnsupported: return "한국어 받아쓰기 엔진을 찾을 수 없습니다."
         case .formatUnavailable: return "마이크와 전사 엔진의 오디오 형식을 맞출 수 없습니다."
         case .notRunning: return "받아쓰기가 시작되지 않았습니다."
         }
@@ -42,8 +42,8 @@ final class DictationSession {
             await cancel()
         }
         try await Self.requestPermissions()
-        let locale = try await Self.resolvedKoreanLocale()
-        try await Self.ensureAssets(locale: locale)
+        let locale = try await SpeechAssets.resolvedKoreanLocale()
+        try await SpeechAssets.ensureInstalled { _ in }
         try await AssetInventory.reserve(locale: locale)
         reservedLocale = locale
 
@@ -189,23 +189,4 @@ final class DictationSession {
         guard speech == .authorized else { throw DictationSessionError.speechDenied }
     }
 
-    static func resolvedKoreanLocale() async throws -> Locale {
-        let requested = Locale(identifier: "ko-KR")
-        if let resolved = await SpeechTranscriber.supportedLocale(equivalentTo: requested) {
-            return resolved
-        }
-        if let korean = await SpeechTranscriber.supportedLocales.first(where: {
-            $0.identifier.lowercased().hasPrefix("ko")
-        }) {
-            return korean
-        }
-        throw DictationSessionError.localeUnsupported
-    }
-
-    static func ensureAssets(locale: Locale) async throws {
-        let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
-        if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
-            try await request.downloadAndInstall()
-        }
-    }
 }

@@ -72,8 +72,15 @@ enum Permissions {
         }
     }
 
+    private static let accessibilityPromptedKey = "didPromptAccessibility"
+
+    static var didPromptAccessibility: Bool {
+        UserDefaults.standard.bool(forKey: accessibilityPromptedKey)
+    }
+
     static func accessibilityStatus() -> PermissionStatus {
-        AXIsProcessTrusted() ? .granted : .denied
+        if AXIsProcessTrusted() { return .granted }
+        return didPromptAccessibility ? .denied : .notDetermined
     }
 
     static func requestMicrophone() async {
@@ -89,11 +96,24 @@ enum Permissions {
     }
 
     static func requestAccessibility() {
+        UserDefaults.standard.set(true, forKey: accessibilityPromptedKey)
         _ = TextInserter.requestAccessibility()
     }
 
     static func openAccessibilitySettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+        openPrivacySettings("Privacy_Accessibility")
+    }
+
+    static func openMicrophoneSettings() {
+        openPrivacySettings("Privacy_Microphone")
+    }
+
+    static func openSpeechSettings() {
+        openPrivacySettings("Privacy_SpeechRecognition")
+    }
+
+    private static func openPrivacySettings(_ pane: String) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
             NSWorkspace.shared.open(url)
         }
     }

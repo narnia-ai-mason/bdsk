@@ -2,6 +2,8 @@ import AppKit
 
 enum AppChrome {
     static var openSettingsWindow: (() -> Void)?
+    static var openSetupWindow: (() -> Void)?
+    private static var pendingSetup = false
 
     static func becomeRegularApp() {
         NSApp.setActivationPolicy(.regular)
@@ -11,6 +13,22 @@ enum AppChrome {
     static func showSettings() {
         becomeRegularApp()
         openSettingsWindow?()
+    }
+
+    static func showSetup() {
+        becomeRegularApp()
+        if let openSetupWindow {
+            openSetupWindow()
+        } else {
+            pendingSetup = true
+        }
+    }
+
+    static func presentPendingWindows() {
+        if pendingSetup {
+            pendingSetup = false
+            showSetup()
+        }
     }
 
     static func resignToMenuBarIfNeeded() {

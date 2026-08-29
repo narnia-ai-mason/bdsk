@@ -39,6 +39,9 @@ final class AppModel: HybridHotkeyHandling {
     var hotkeyMonitorFailed = false
     var debuggerAttached = ProcessDebugState.isAttached
     var runningAppPath = Bundle.main.bundlePath
+    var speechAssetPhase: SpeechAssetPhase = .unknown
+    var speechAssetProgress: Double = 0
+    private(set) var dismissedSetupThisSession = false
     var holdThresholdMs: Double {
         didSet { UserDefaults.standard.set(holdThresholdMs, forKey: "holdThresholdMs") }
     }
@@ -65,6 +68,67 @@ final class AppModel: HybridHotkeyHandling {
         let stored = UserDefaults.standard.double(forKey: "holdThresholdMs")
         holdThresholdMs = stored == 0 ? 300 : stored
         startMonitoring()
+        Task { await considerFirstRun() }
+    }
+
+    var isSetupComplete: Bool {
+        Permissions.microphoneStatus() == .granted
+            && Permissions.speechStatus() == .granted
+            && Permissions.accessibilityStatus() == .granted
+            && speechAssetPhase == .ready
+    }
+
+    var shouldPresentSetup: Bool {
+        if dismissedSetupThisSession { return false }
+        if Permissions.microphoneStatus() == .notDetermined { return true }
+        if Permissions.speechStatus() == .notDetermined { return true }
+        if Permissions.accessibilityStatus() == .notDetermined { return true }
+        switch speechAssetPhase {
+        case .ready:
+            return false
+        case .downloading:
+            return true
+        case .unknown, .checking, .available, .unsupported, .failed:
+            return true
+        }
+    }
+
+    func considerFirstRun() async {
+        await refreshSpeechAssets()
+        if shouldPresentSetup {
+            AppChrome.showSetup()
+        }
+    }
+
+    func dismissSetupForSession() {
+        dismissedSetupThisSession = true
+    }
+
+    func refreshSpeechAssets() async {
+        if speechAssetPhase == .downloading { return }
+        speechAssetPhase = .checking
+        speechAssetPhase = await SpeechAssets.phase()
+        if speechAssetPhase == .ready {
+            speechAssetProgress = 1
+        }
+    }
+
+    func installSpeechAssets() async {
+        speechAssetPhase = .downloading
+        speechAssetProgress = 0
+        lastMessage = ""
+        do {
+            try await SpeechAssets.ensureInstalled { [weak self] value in
+                self?.speechAssetProgress = value
+            }
+            speechAssetPhase = await SpeechAssets.phase()
+            if speechAssetPhase != .ready {
+                speechAssetPhase = .ready
+            }
+        } catch {
+            speechAssetPhase = .failed
+            lastMessage = "한국어 엔진을 받지 못했습니다. 네트워크를 확인한 뒤 다시 받아 주세요."
+        }
     }
 
     func startMonitoring() {
@@ -139,10 +203,14 @@ final class AppModel: HybridHotkeyHandling {
         pendingFinish = false
         capturedElement = TextInserter.focusedElement()
         do {
+            if speechAssetPhase != .ready {
+                lastMessage = "한국어 엔진을 준비하고 있습니다."
+            }
             let hints = lexicon.appleHints()
             try await session.start(hints: hints) { [weak self] text in
                 self?.partialText = text
             }
+            await refreshSpeechAssets()
             readyAt = Date()
             if pendingFinish {
                 phase = .recordingToggle

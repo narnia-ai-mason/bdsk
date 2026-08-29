@@ -29,6 +29,7 @@ struct PermissionsSettingsPane: View {
                         Permissions.openAccessibilitySettings()
                         refresh()
                     }
+                    assetRow
                 }
             }
 
@@ -51,6 +52,33 @@ struct PermissionsSettingsPane: View {
                             NSPasteboard.general.setString(model.runningAppPath, forType: .string)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var assetRow: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("한국어 엔진")
+                    .font(BdskTheme.labelFont())
+                    .foregroundStyle(BdskTheme.pearl)
+                Text("macOS가 받아쓰기에 쓰는 자산입니다. 없으면 받습니다.")
+                    .font(BdskTheme.captionFont())
+                    .foregroundStyle(BdskTheme.pearlMuted)
+                Text(model.speechAssetPhase.label)
+                    .font(BdskTheme.captionFont())
+                    .foregroundStyle(model.speechAssetPhase == .ready ? BdskTheme.lavender : BdskTheme.pinkDeep)
+                if model.speechAssetPhase == .downloading {
+                    ProgressView(value: model.speechAssetProgress)
+                        .tint(BdskTheme.lavender)
+                }
+            }
+            Spacer()
+            if model.speechAssetPhase == .available || model.speechAssetPhase == .failed {
+                BdskPrimaryButton(title: model.speechAssetPhase == .failed ? "다시 받기" : "받기") {
+                    Task { await model.installSpeechAssets() }
                 }
             }
         }

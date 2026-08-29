@@ -113,6 +113,7 @@ struct SettingsView: View {
     private func recheck() {
         refreshPermissions()
         model.refreshHotkeyMonitor()
+        Task { await model.refreshSpeechAssets() }
     }
 
     private func refreshPermissions() {
