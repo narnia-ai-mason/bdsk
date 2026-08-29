@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+build/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.xcresult
+timeline.xctimeline
+playground.xcworkspace
+
+# SwiftPM
+.build/
+
+# Built apps (source stays; binaries do not)
+*.app
+
+# Personal voice samples — keep locally, do not publish
+Tests/*.m4a
+Tests/*.wav
+Tests/*.aiff
+Tests/*.caf
+
+# Claude Design / design-sync — the Swift app does not use these
+.ds-sync/
+.design-sync/
+ds-bundle/
+design-system/
+node_modules/

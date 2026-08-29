@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>dev.bdsk.apple-asr-bench</string>
+	<key>CFBundleName</key>
+	<string>AppleASR</string>
+	<key>CFBundleExecutable</key>
+	<string>AppleASR</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>로컬 녹음 파일의 온디바이스 전사 벤치마크에 사용합니다.</string>
+</dict>
+</plist>
