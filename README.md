@@ -14,6 +14,16 @@ bdsk는 그 간극을 메우려고 만든 작은 앱입니다. 전사는 기기 
 
 macOS 26 이상이 필요합니다.
 
+## 설치
+
+[Releases](https://github.com/narnia-ai-mason/bdsk/releases)에서 `bdsk-*-macos.dmg`를 받아 엽니다. `bdsk`를 Applications로 끌어다 놓으면 됩니다.
+
+Apple Developer ID로 서명하지 않았으므로, 처음에는 **응용 프로그램의 bdsk를 우클릭 → 열기**로 실행하세요. 더블클릭만 하면 Gatekeeper가 막을 수 있습니다.
+
+앱은 Dock에 상주하지 않습니다. 메뉴막대 아이콘이 켜진 표시입니다. 설정에서 마이크, 음성 인식, 손쉬운 사용을 허용하세요.
+
+배포용 dmg를 다시 만들 때는 `scripts/package-release.sh`를 실행합니다.
+
 ## 특징
 
 - **조사 보존 사전.** `스위프트 데이터로` → `SwiftData로`, `스위프트 데이터에서는` → `SwiftData에서는`. `에서`+`는`처럼 겹친 조사도 이어서 먹습니다. 조사가 아닌 한글이 이어지면 치환하지 않습니다 (`스위프트 데이터링`).

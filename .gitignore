@@ -24,6 +24,7 @@ playground.xcworkspace
 
 # Built apps (source stays; binaries do not)
 *.app
+dist/
 
 # Personal voice samples — keep locally, do not publish
 Tests/*.m4a
