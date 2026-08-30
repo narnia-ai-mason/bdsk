@@ -16,9 +16,15 @@
 
 단어만 말하면 사전이 됩니다. `깃허브에`처럼 조사가 붙으면 표제어를 놓칩니다.
 
-| bdsk | TypeWhisper |
-| :---: | :---: |
-| ![bdsk](docs/bdsk.gif) | ![TypeWhisper](docs/typewhisper.gif) |
+<p align="center">
+  <strong>bdsk</strong><br>
+  <img src="docs/bdsk.gif" width="900" alt="bdsk">
+</p>
+
+<p align="center">
+  <strong>TypeWhisper</strong><br>
+  <img src="docs/typewhisper.gif" width="900" alt="TypeWhisper">
+</p>
 
 바이브 코딩할 때 프롬프트를 타이핑하지 않고 말합니다. `노션으로`, `커서로`, `스위프트 데이터에서는`. 공백으로 단어를 나누는 사전은 표제어 `노션`을 넣어 둬도 그 다음 글자를 다른 단어로 봅니다. 조사마다 항목을 복제하면 엔진이 받을 수 있는 힌트(최대 100개)를 금방 채웁니다.
 
