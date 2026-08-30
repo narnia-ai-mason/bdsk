@@ -172,6 +172,9 @@ final class AppModel: HybridHotkeyHandling {
     }
 
     func refreshHotkeyMonitor() {
+        if monitor != nil, !hotkeyMonitorFailed {
+            return
+        }
         monitor?.stop()
         monitor = nil
         startMonitoring()
