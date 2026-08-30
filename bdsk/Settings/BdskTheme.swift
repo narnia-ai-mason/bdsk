@@ -70,7 +70,11 @@ struct BdskField: View {
     let title: String
     let placeholder: String
     @Binding var text: String
-    var focused: Bool = false
+    var focus: FocusState<Bool>.Binding? = nil
+
+    private var isFocused: Bool {
+        focus?.wrappedValue ?? false
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -87,8 +91,22 @@ struct BdskField: View {
                 .clipShape(RoundedRectangle(cornerRadius: BdskTheme.radiusField, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: BdskTheme.radiusField, style: .continuous)
-                        .stroke(focused ? BdskTheme.lavender : BdskTheme.stroke, lineWidth: focused ? 1.5 : 1)
+                        .stroke(isFocused ? BdskTheme.lavender : BdskTheme.stroke, lineWidth: isFocused ? 1.5 : 1)
                 )
+                .modifier(OptionalBoolFocus(focus: focus))
+        }
+    }
+}
+
+private struct OptionalBoolFocus: ViewModifier {
+    var focus: FocusState<Bool>.Binding?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let focus {
+            content.focused(focus)
+        } else {
+            content
         }
     }
 }

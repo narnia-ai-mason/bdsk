@@ -23,6 +23,7 @@ struct SettingsView: View {
     @State private var micStatus = Permissions.microphoneStatus()
     @State private var speechStatus = Permissions.speechStatus()
     @State private var accessStatus = Permissions.accessibilityStatus()
+    @State private var formReveal = 0
 
     var body: some View {
         HStack(spacing: 0) {
@@ -78,15 +79,24 @@ struct SettingsView: View {
     }
 
     private var detail: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text(pane.title)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(BdskTheme.pearl)
-                paneContent
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text(pane.title)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(BdskTheme.pearl)
+                    paneContent
+                }
+                .padding(32)
+                .frame(maxWidth: 720, alignment: .leading)
             }
-            .padding(32)
-            .frame(maxWidth: 720, alignment: .leading)
+            .onChange(of: formReveal) {
+                DispatchQueue.main.async {
+                    withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28)) {
+                        proxy.scrollTo(LexiconEditor.formScrollID, anchor: .top)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BdskTheme.bgBase)
@@ -98,7 +108,9 @@ struct SettingsView: View {
         case .general:
             GeneralSettingsPane(model: model)
         case .lexicon:
-            LexiconEditor(store: model.lexicon)
+            LexiconEditor(store: model.lexicon) {
+                formReveal += 1
+            }
         case .permissions:
             PermissionsSettingsPane(
                 model: model,

@@ -1,11 +1,16 @@
 import SwiftUI
 
 struct LexiconEditor: View {
+    static let formScrollID = "lexicon-form"
+
     @Bindable var store: LexiconStore
+    var onRevealForm: () -> Void = {}
+
     @State private var spoken = ""
     @State private var written = ""
     @State private var editing: LexiconEntry?
     @State private var toast = ""
+    @FocusState private var spokenFocused: Bool
 
     private var canSubmit: Bool {
         !written.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -32,7 +37,8 @@ struct LexiconEditor: View {
                         BdskField(
                             title: "이렇게 말하면",
                             placeholder: "스위프트 데이터, 스위프트데이터",
-                            text: $spoken
+                            text: $spoken,
+                            focus: $spokenFocused
                         )
                         Text("→")
                             .font(BdskTheme.titleFont())
@@ -61,6 +67,7 @@ struct LexiconEditor: View {
                     }
                 }
             }
+            .id(Self.formScrollID)
 
             if store.entries.isEmpty {
                 CeramicCard {
@@ -145,6 +152,10 @@ struct LexiconEditor: View {
         written = entry.replacement
         spoken = entry.aliases.joined(separator: ", ")
         toast = ""
+        onRevealForm()
+        Task { @MainActor in
+            spokenFocused = true
+        }
     }
 
     private func clearForm() {
