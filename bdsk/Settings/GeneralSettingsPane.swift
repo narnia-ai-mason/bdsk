@@ -47,6 +47,25 @@ struct GeneralSettingsPane: View {
                     }
                 }
             }
+
+            CeramicCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("듣기 표시")
+                        .font(BdskTheme.titleFont())
+                        .foregroundStyle(BdskTheme.pearl)
+                    Text("받아쓰는 동안 화면 아래에 작게 보여 줍니다. 화면을 녹화하거나 화상 회의에 있으면 메뉴막대 마이크 표시만으로는 구분하기 어렵습니다.")
+                        .font(BdskTheme.bodyFont())
+                        .foregroundStyle(BdskTheme.pearlMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Toggle(isOn: $model.showsListeningHUD) {
+                        Text("화면에 표시")
+                            .font(BdskTheme.labelFont())
+                            .foregroundStyle(BdskTheme.pearl)
+                    }
+                    .toggleStyle(.switch)
+                    .tint(BdskTheme.lavender)
+                }
+            }
         }
     }
 }

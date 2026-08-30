@@ -27,13 +27,26 @@ enum DictationPhase: Equatable {
         case .finishing: return "넣는 중"
         }
     }
+
+    var listeningHUDLabel: String? {
+        switch self {
+        case .starting, .recordingToggle, .recordingHold:
+            return "듣고 있어요"
+        case .finishing:
+            return "넣는 중"
+        case .idle:
+            return nil
+        }
+    }
 }
 
 @MainActor
 @Observable
 final class AppModel: HybridHotkeyHandling {
     let lexicon = LexiconStore()
-    var phase: DictationPhase = .idle
+    var phase: DictationPhase = .idle {
+        didSet { syncListeningHUD() }
+    }
     var partialText = ""
     var lastMessage = ""
     var hotkeyMonitorFailed = false
@@ -48,8 +61,15 @@ final class AppModel: HybridHotkeyHandling {
     var hotkey: HotkeyBinding {
         didSet { persistHotkey() }
     }
+    var showsListeningHUD: Bool {
+        didSet {
+            UserDefaults.standard.set(showsListeningHUD, forKey: "showsListeningHUD")
+            syncListeningHUD()
+        }
+    }
 
     private let session = DictationSession()
+    private let listeningHUD = RecordingHUDController()
     private var monitor: HybridHotkeyMonitor?
     private var capturedElement: AXUIElement?
     private var readyAt: Date?
@@ -67,6 +87,11 @@ final class AppModel: HybridHotkeyHandling {
         }
         let stored = UserDefaults.standard.double(forKey: "holdThresholdMs")
         holdThresholdMs = stored == 0 ? 300 : stored
+        if UserDefaults.standard.object(forKey: "showsListeningHUD") == nil {
+            showsListeningHUD = true
+        } else {
+            showsListeningHUD = UserDefaults.standard.bool(forKey: "showsListeningHUD")
+        }
         startMonitoring()
         Task { await considerFirstRun() }
     }
@@ -205,9 +230,17 @@ final class AppModel: HybridHotkeyHandling {
                 lastMessage = "한국어 엔진을 준비하고 있습니다."
             }
             let hints = lexicon.appleHints()
-            try await session.start(hints: hints) { [weak self] text in
-                self?.partialText = text
-            }
+            try await session.start(
+                hints: hints,
+                onPartial: { [weak self] text in
+                    self?.partialText = text
+                },
+                onLevel: { [weak self] value in
+                    Task { @MainActor in
+                        self?.listeningHUD.setAmplitude(value)
+                    }
+                }
+            )
             await refreshSpeechAssets()
             readyAt = Date()
             if pendingFinish {
@@ -263,7 +296,12 @@ final class AppModel: HybridHotkeyHandling {
         stillHolding = false
         pendingFinish = false
         partialText = ""
+        listeningHUD.setAmplitude(0)
         phase = .idle
+    }
+
+    private func syncListeningHUD() {
+        listeningHUD.update(phase: phase, enabled: showsListeningHUD)
     }
 
     private func persistHotkey() {

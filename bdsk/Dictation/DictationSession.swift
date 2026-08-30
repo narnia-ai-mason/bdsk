@@ -33,10 +33,16 @@ final class DictationSession {
     private var finals: [String] = []
     private var volatile = ""
     private var onPartial: ((String) -> Void)?
+    private var onLevel: (@Sendable (Double) -> Void)?
+    private let levelEnvelope = LevelEnvelope()
 
     var isRunning: Bool { analyzer != nil }
 
-    func start(hints: [String], onPartial: @escaping (String) -> Void) async throws {
+    func start(
+        hints: [String],
+        onPartial: @escaping (String) -> Void,
+        onLevel: (@Sendable (Double) -> Void)? = nil
+    ) async throws {
         if isRunning {
             await cancel()
         }
@@ -90,6 +96,8 @@ final class DictationSession {
         self.transcriber = transcriber
         self.engine = engine
         self.onPartial = onPartial
+        self.onLevel = onLevel
+        levelEnvelope.reset()
         finals = []
         volatile = ""
         partialText = ""
@@ -122,9 +130,17 @@ final class DictationSession {
 
         let converter = AudioBufferConverter()
         let continuation = streamParts.continuation
+        let envelope = levelEnvelope
+        let reportLevel = onLevel
         input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { buffer, _ in
-            guard let converted = converter.convert(buffer, to: analyzerFormat) else { return }
-            continuation.yield(AnalyzerInput(buffer: converted))
+            if let converted = converter.convert(buffer, to: analyzerFormat) {
+                continuation.yield(AnalyzerInput(buffer: converted))
+            }
+            guard let reportLevel, let peak = envelope.push(AudioLevel.peak(of: buffer)) else { return }
+            let value = AudioLevel.normalized(peak)
+            Task { @MainActor in
+                reportLevel(value)
+            }
         }
     }
 
@@ -161,6 +177,8 @@ final class DictationSession {
         continuation = nil
         resultTask = nil
         onPartial = nil
+        onLevel = nil
+        levelEnvelope.reset()
         finals = []
         volatile = ""
         partialText = ""
@@ -178,4 +196,63 @@ final class DictationSession {
         guard speech == .authorized else { throw DictationSessionError.speechDenied }
     }
 
+}
+
+enum AudioLevel {
+    static func peak(of buffer: AVAudioPCMBuffer) -> Float {
+        let frames = Int(buffer.frameLength)
+        guard frames > 0 else { return 0 }
+        let channels = Int(buffer.format.channelCount)
+        var peak: Float = 0
+        if let data = buffer.floatChannelData {
+            for channel in 0..<channels {
+                let samples = data[channel]
+                for index in 0..<frames {
+                    peak = max(peak, abs(samples[index]))
+                }
+            }
+            return peak
+        }
+        if let data = buffer.int16ChannelData {
+            for channel in 0..<channels {
+                let samples = data[channel]
+                for index in 0..<frames {
+                    peak = max(peak, abs(Float(samples[index]) / 32768))
+                }
+            }
+            return peak
+        }
+        return 0
+    }
+
+    static func normalized(_ peak: Float) -> Double {
+        let noise: Float = 0.018
+        let loud: Float = 0.32
+        let clamped = max(0, min(1, (peak - noise) / (loud - noise)))
+        return Double(pow(clamped, 0.62))
+    }
+}
+
+final class LevelEnvelope: @unchecked Sendable {
+    private var value: Float = 0
+    private var lastEmit = 0.0
+    private let lock = NSLock()
+
+    func push(_ peak: Float) -> Float? {
+        lock.lock()
+        defer { lock.unlock() }
+        let coeff: Float = peak > value ? 0.5 : 0.16
+        value += (peak - value) * coeff
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastEmit >= 0.045 else { return nil }
+        lastEmit = now
+        return value
+    }
+
+    func reset() {
+        lock.lock()
+        value = 0
+        lastEmit = 0
+        lock.unlock()
+    }
 }
