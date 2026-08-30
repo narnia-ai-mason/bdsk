@@ -1,7 +1,7 @@
 # bdsk
 
 <p align="center">
-  <img src="AppIcon-fullbleed-1024.png" width="180" alt="bdsk">
+  <img src="docs/AppIcon-fullbleed-1024.png" width="180" alt="bdsk">
 </p>
 
 <p align="center">
@@ -17,6 +17,24 @@
 바이브 코딩할 때 프롬프트를 타이핑하지 않고 말합니다. `노션으로`, `커서로`, `스위프트 데이터에서는`. 공백으로 단어를 나누는 사전은 표제어 `노션`을 넣어 둬도 그 다음 글자를 다른 단어로 봅니다. 조사마다 항목을 복제하면 엔진이 받을 수 있는 힌트(최대 100개)를 금방 채웁니다.
 
 bdsk는 어간만 등록합니다. 조사는 코드가 남깁니다. 전사는 기기 안의 Apple SpeechAnalyzer(`ko-KR`)가 하고, 텍스트는 지금 있는 커서에 들어갑니다.
+
+## 단어만 말하면 둘 다 됩니다. 조사가 붙으면.
+
+같은 말, 같은 Apple Speech. `깃허브`, `피알`, `노션`만 말하면 TypeWhisper도 bdsk도 `GitHub`, `PR`, `Notion`으로 고칩니다. `깃허브에`, `노션에`처럼 조사가 붙으면 TypeWhisper 치환은 표제어를 못 만나고 `기터부에`, `노션에`로 남습니다. bdsk는 어간만 보고 `GitHub에`, `Notion에`로 넣습니다.
+
+| bdsk | TypeWhisper |
+| --- | --- |
+| `GitHub에 PR 올려놨고 자세한 내용은 Notion에 써놨어.` | `기터부에 PR 올려놨고 자세한 내용은 노션에 써놨어.` |
+
+<p align="center">
+  <strong>bdsk</strong><br>
+  <video src="docs/bdsk.mp4" controls width="720"></video>
+</p>
+
+<p align="center">
+  <strong>TypeWhisper</strong><br>
+  <video src="docs/typewhisper.mp4" controls width="720"></video>
+</p>
 
 ## 하는 일
 
@@ -78,5 +96,6 @@ xcodebuild -project bdsk.xcodeproj -scheme bdsk \
 | `bdsk/Settings` | 핫키 녹음, 사전 CRUD |
 | `bdskTests` | `ParticleAwareReplacer` |
 | `bench/apple` | SpeechAnalyzer 파일 전사 벤치. 앱 런타임에 넣지 않습니다. |
+| `docs` | README 로고, TypeWhisper 비교 영상 |
 
 번들 ID는 `dev.bdsk.app`입니다. 시각 언어는 [DESIGN.md](DESIGN.md)에 있습니다.
