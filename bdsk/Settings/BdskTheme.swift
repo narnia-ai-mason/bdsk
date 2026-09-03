@@ -134,6 +134,7 @@ struct BdskPrimaryButton: View {
 struct BdskGhostButton: View {
     let title: String
     var role: ButtonRole?
+    var enabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -143,6 +144,31 @@ struct BdskGhostButton: View {
                 .foregroundStyle(role == .destructive ? BdskTheme.pinkDeep : BdskTheme.lavender)
                 .frame(minHeight: 36)
                 .padding(.horizontal, 10)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+    }
+}
+
+struct BdskChoiceChip: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(BdskTheme.labelFont())
+                .foregroundStyle(selected ? BdskTheme.pearl : BdskTheme.pearlMuted)
+                .frame(minWidth: 36, minHeight: 32)
+                .padding(.horizontal, 10)
+                .background(selected ? BdskTheme.surfaceRaised : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: BdskTheme.radiusChip, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: BdskTheme.radiusChip, style: .continuous)
+                        .stroke(selected ? BdskTheme.lavender : Color.clear, lineWidth: 1.5)
+                )
         }
         .buttonStyle(.plain)
     }

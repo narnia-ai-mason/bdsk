@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+enum LexiconAddOutcome: Equatable {
+    case added(LexiconEntry)
+    case merged(LexiconEntry)
+}
+
 @MainActor
 @Observable
 final class LexiconStore {
@@ -32,14 +37,21 @@ final class LexiconStore {
     }
 
     @discardableResult
-    func add(replacement: String, aliases: [String]) -> LexiconEntry? {
+    func add(replacement: String, aliases: [String]) -> LexiconAddOutcome? {
         let trimmedReplacement = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
         let expanded = ParticleAwareReplacer.expandedAliases(aliases)
         guard !trimmedReplacement.isEmpty, !expanded.isEmpty else { return nil }
-        var entry = LexiconEntry(replacement: trimmedReplacement, aliases: expanded)
+        let key = Self.replacementKey(trimmedReplacement)
+        if let index = entries.firstIndex(where: { Self.replacementKey($0.replacement) == key }) {
+            entries[index].aliases = ParticleAwareReplacer.expandedAliases(entries[index].aliases + expanded)
+            entries[index].updatedAt = Date()
+            save()
+            return .merged(entries[index])
+        }
+        let entry = LexiconEntry(replacement: trimmedReplacement, aliases: expanded)
         entries.append(entry)
         save()
-        return entry
+        return .added(entry)
     }
 
     func update(_ entry: LexiconEntry, replacement: String, aliases: [String]) {
@@ -93,6 +105,23 @@ final class LexiconStore {
             try data.write(to: fileURL, options: [.atomic])
         } catch {
             // Keep in-memory state even if disk write fails.
+        }
+    }
+
+    static func replacementKey(_ text: String) -> String {
+        text.precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    static func matching(_ entries: [LexiconEntry], replacementQuery: String) -> [LexiconEntry] {
+        let needle = replacementQuery
+            .precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !needle.isEmpty else { return entries }
+        return entries.filter {
+            $0.replacement.precomposedStringWithCanonicalMapping.lowercased().contains(needle)
         }
     }
 
