@@ -115,7 +115,7 @@ enum ParticleAwareReplacer {
             } else {
                 afterParticle = matchEnd
             }
-            guard isEndBoundary(in: text, at: afterParticle) else { continue }
+            guard isEndBoundary(in: text, at: afterParticle, matchClass: alias.startClass) else { continue }
             return Hit(
                 range: index..<afterParticle,
                 replacement: alias.replacement,
@@ -155,11 +155,20 @@ enum ParticleAwareReplacer {
         return scriptClass(previous) != matchClass
     }
 
-    private static func isEndBoundary(in text: String, at index: String.Index) -> Bool {
+    /// After consuming whitelist attachments, leftover hangul means the stem
+    /// was inside a longer word (`데이터링`). Latin/number stems also cannot
+    /// be a prefix of a longer latin token (`CTA` in `CTABC`).
+    private static func isEndBoundary(
+        in text: String,
+        at index: String.Index,
+        matchClass: ScriptClass
+    ) -> Bool {
         if index == text.endIndex { return true }
         let next = text[index]
         if next.isWhitespace || next.isPunctuation { return true }
-        return scriptClass(next) != .hangul
+        let nextClass = scriptClass(next)
+        if nextClass == .hangul { return false }
+        return nextClass != matchClass
     }
 
     static func scriptClass(_ character: Character) -> ScriptClass {

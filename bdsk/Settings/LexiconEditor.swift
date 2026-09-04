@@ -53,7 +53,7 @@ struct LexiconEditor: View {
                     Text("사전은 하나예요")
                         .font(BdskTheme.titleFont())
                         .foregroundStyle(BdskTheme.pearl)
-                    Text("엔진이 한글로 적는 고유명사든, 짧게 말하고 싶은 말이든 같은 칸에 넣으면 됩니다. 말한 형태와 넣을 글자만 적으세요. 조사는 따로 적지 않아도 됩니다. 스위프트 데이터만 있으면 스위프트 데이터로, 스위프트 데이터에서도 같이 바뀝니다.")
+                    Text("엔진이 한글로 적는 고유명사든, 짧게 말하고 싶은 말이든 같은 칸에 넣으면 됩니다. 말한 형태와 넣을 글자만 적으세요. 조사와 입니다처럼 자주 붙는 말은 따로 적지 않아도 됩니다. 스위프트 데이터만 있으면 스위프트 데이터로, 스위프트 데이터입니다도 같이 바뀝니다.")
                         .font(BdskTheme.bodyFont())
                         .foregroundStyle(BdskTheme.pearlMuted)
                         .fixedSize(horizontal: false, vertical: true)
