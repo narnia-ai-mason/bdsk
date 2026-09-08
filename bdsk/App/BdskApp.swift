@@ -76,6 +76,10 @@ struct MenuBarContent: View {
 
     var body: some View {
         Text("bdsk · \(model.phase.menuLabel)")
+        if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+            Text(version)
+                .foregroundStyle(.secondary)
+        }
         if !model.partialText.isEmpty {
             Text(model.partialText)
                 .foregroundStyle(.secondary)
@@ -86,8 +90,13 @@ struct MenuBarContent: View {
                 .lineLimit(2)
         }
         Divider()
-        Button(model.phase.isRecording ? "받아쓰기 끝내기" : "받아쓰기 시작") {
+        Button(menuActionTitle) {
             model.toggleFromMenu()
+        }
+        if model.phase == .reviewingNumbers {
+            Button("숫자 취소") {
+                model.cancelNumberReviewFromMenu()
+            }
         }
         Button("설정…") {
             AppChrome.showSettings()
@@ -96,6 +105,17 @@ struct MenuBarContent: View {
         Divider()
         Button("종료") {
             NSApp.terminate(nil)
+        }
+    }
+
+    private var menuActionTitle: String {
+        switch model.phase {
+        case .reviewingNumbers:
+            return "숫자 넣기"
+        case .starting, .recordingToggle, .recordingHold:
+            return "받아쓰기 끝내기"
+        case .idle, .finishing:
+            return "받아쓰기 시작"
         }
     }
 }
