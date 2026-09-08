@@ -32,6 +32,26 @@ enum TextInserter {
         return (element as! AXUIElement)
     }
 
+    /// Bring the element’s app forward and focus the field so paste/AX insert lands correctly
+    /// after bdsk briefly became key for the number-review HUD.
+    @discardableResult
+    static func focus(_ element: AXUIElement?) -> Bool {
+        guard let element else { return false }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success,
+              let app = NSRunningApplication(processIdentifier: pid)
+        else {
+            return false
+        }
+        app.activate(options: [.activateIgnoringOtherApps])
+        let focused = AXUIElementSetAttributeValue(
+            element,
+            kAXFocusedAttribute as CFString,
+            kCFBooleanTrue
+        )
+        return focused == .success
+    }
+
     static func insert(_ text: String, into storedElement: AXUIElement?) -> InsertionOutcome {
         guard !text.isEmpty else { return .failed("빈 텍스트") }
 

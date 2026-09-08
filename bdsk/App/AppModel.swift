@@ -10,6 +10,7 @@ enum DictationPhase: Equatable {
     case recordingToggle
     case recordingHold
     case finishing
+    case reviewingNumbers
 
     var isRecording: Bool {
         switch self {
@@ -25,6 +26,7 @@ enum DictationPhase: Equatable {
         case .recordingToggle: return "녹음 중 · 토글"
         case .recordingHold: return "녹음 중 · 누르는 중"
         case .finishing: return "넣는 중"
+        case .reviewingNumbers: return "숫자 고르는 중"
         }
     }
 
@@ -34,7 +36,7 @@ enum DictationPhase: Equatable {
             return "듣고 있어요"
         case .finishing:
             return "넣는 중"
-        case .idle:
+        case .idle, .reviewingNumbers:
             return nil
         }
     }
@@ -70,8 +72,10 @@ final class AppModel: HybridHotkeyHandling {
 
     private let session = DictationSession()
     private let listeningHUD = RecordingHUDController()
+    private let numberReviewHUD = NumberReviewHUDController()
     private var monitor: HybridHotkeyMonitor?
     private var capturedElement: AXUIElement?
+    private var pendingNumberText: String?
     private var readyAt: Date?
     private var releasedBeforeReady = false
     private var stillHolding = false
@@ -91,6 +95,12 @@ final class AppModel: HybridHotkeyHandling {
             showsListeningHUD = true
         } else {
             showsListeningHUD = UserDefaults.standard.bool(forKey: "showsListeningHUD")
+        }
+        numberReviewHUD.onCommit = { [weak self] in
+            self?.commitNumberReview()
+        }
+        numberReviewHUD.onCancel = { [weak self] in
+            self?.cancelNumberReview()
         }
         startMonitoring()
         Task { await considerFirstRun() }
@@ -189,6 +199,8 @@ final class AppModel: HybridHotkeyHandling {
             pendingFinish = true
         case .recordingToggle:
             Task { await finishRecording() }
+        case .reviewingNumbers:
+            commitNumberReview()
         case .recordingHold, .finishing:
             break
         }
@@ -212,15 +224,27 @@ final class AppModel: HybridHotkeyHandling {
     }
 
     func toggleFromMenu() {
-        if phase.isRecording {
+        switch phase {
+        case .reviewingNumbers:
+            commitNumberReview()
+        case .starting, .recordingToggle, .recordingHold:
             Task { await finishRecording() }
-        } else {
+        case .idle:
             stillHolding = false
             Task { await beginRecording() }
+        case .finishing:
+            break
         }
     }
 
+    func cancelNumberReviewFromMenu() {
+        cancelNumberReview()
+    }
+
     private func beginRecording() async {
+        if phase == .reviewingNumbers {
+            commitNumberReview()
+        }
         guard phase == .idle else { return }
         phase = .starting
         lastMessage = ""
@@ -278,21 +302,67 @@ final class AppModel: HybridHotkeyHandling {
             }
             if corrected.isEmpty {
                 lastMessage = "인식된 말이 없습니다."
+                endSessionCleanup()
             } else {
-                let toInsert = corrected.hasSuffix(" ") ? corrected : corrected + " "
-                switch TextInserter.insert(toInsert, into: capturedElement) {
-                case .insertedViaAccessibility, .pasted:
-                    lastMessage = corrected
-                case .copiedToClipboard:
-                    lastMessage = "텍스트 필드가 없어 클립보드에 복사했습니다."
-                case .failed(let reason):
-                    lastMessage = reason
+                let choices = NumberOrthography.findChoices(in: corrected)
+                if choices.isEmpty {
+                    insertTranscript(corrected)
+                    endSessionCleanup()
+                } else {
+                    pendingNumberText = corrected
+                    phase = .reviewingNumbers
+                    partialText = ""
+                    listeningHUD.setAmplitude(0)
+                    syncListeningHUD()
+                    numberReviewHUD.show(baseText: corrected, choices: choices)
+                    lastMessage = "숫자 표기를 고른 뒤 넣으세요."
                 }
             }
         } catch {
             lastMessage = error.localizedDescription
             await session.cancel()
+            endSessionCleanup()
         }
+    }
+
+    private func commitNumberReview() {
+        guard phase == .reviewingNumbers, let base = pendingNumberText else { return }
+        let choices = numberReviewHUD.currentChoices() ?? NumberOrthography.findChoices(in: base)
+        let resolved = NumberOrthography.apply(choices, to: base)
+        let target = capturedElement
+        numberReviewHUD.hide()
+        pendingNumberText = nil
+        // HUD stole key focus for keyboard navigation — put it back before insert/paste.
+        TextInserter.focus(target)
+        insertTranscript(resolved)
+        endSessionCleanup()
+    }
+
+    private func cancelNumberReview() {
+        guard phase == .reviewingNumbers else { return }
+        let target = capturedElement
+        numberReviewHUD.hide()
+        pendingNumberText = nil
+        TextInserter.focus(target)
+        lastMessage = "숫자 표기를 취소했습니다."
+        endSessionCleanup()
+    }
+
+    private func insertTranscript(_ corrected: String) {
+        let toInsert = corrected.hasSuffix(" ") ? corrected : corrected + " "
+        switch TextInserter.insert(toInsert, into: capturedElement) {
+        case .insertedViaAccessibility, .pasted:
+            lastMessage = corrected
+        case .copiedToClipboard:
+            lastMessage = "텍스트 필드가 없어 클립보드에 복사했습니다."
+        case .failed(let reason):
+            lastMessage = reason
+        }
+    }
+
+    private func endSessionCleanup() {
+        numberReviewHUD.hide()
+        pendingNumberText = nil
         capturedElement = nil
         readyAt = nil
         releasedBeforeReady = false

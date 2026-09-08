@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>On-device speech-to-text for macOS.</strong><br>
-  Cursor에 한국어로 말하면, 조사까지 남습니다.
+  Cursor에 한국어로 말하면, 조사와 숫자 읽는 법까지 남습니다.
 </p>
 
 <p align="center">
@@ -36,11 +36,21 @@ TypeWhisper에서 그 문장까지 고치려면 `깃허브에`, `깃허브에서
 
 bdsk에서는 그러지 않아도 됩니다. `깃허브`만 넣으면 `깃허브에`, `깃허브에서`, `깃허브로는`이 됩니다. 조사는 코드가 남깁니다. 전사는 기기 안의 Apple SpeechAnalyzer(`ko-KR`)가 하고, 텍스트는 지금 있는 커서에 들어갑니다.
 
-로컬 Whisper나 Qwen을 올리거나, 클라우드로 보내 문장을 다듬는 받아쓰기도 있습니다. bdsk는 둘 다 안 합니다. 전사는 Neural Engine에서 하고, 그 위에 올리는 건 조사 보존 사전뿐입니다. 모델 파일을 받지 않습니다. 빠르고, 조사를 남기고, 그다음엔 없습니다.
+한국어 숫자는 읽는 법이 두 가지입니다. 하나 둘 셋으로 말하면 한글로 적고, 일 이 삼으로 말하면 아라비아 숫자로 적는 경우가 많습니다. 엔진은 가끔 이를 구분하지 않습니다. `한 시에서 두 시 사이에 전화할게.`라고 말해도 `1시에서 2시 사이에 전화할게.`로 나올 수 있습니다. `한 분`과 `1분`처럼 의미가 갈리는 자리도 있습니다.
+
+그래서 숫자+수분류사(`시`, `분`, `가지`, `개` …)가 보이면 바로 넣지 않고, 표기를 고르는 HUD를 잠깐 띄웁니다. `1시`와 `한 시`, `2시`와 `두 시` 중 고른 뒤 넣습니다. ↑↓·Tab으로 항목을 옮기고 ←→로 고르며, ESC로 취소하거나 핫키·Return으로 넣습니다.
+
+<p align="center">
+  <img src="docs/number-orthography.png" width="420" alt="숫자 표기 HUD"><br>
+  <code>한 시에서 두 시 사이에 전화할게.</code>
+</p>
+
+로컬 Whisper나 Qwen을 올리거나, 클라우드로 보내 문장을 다듬는 받아쓰기도 있습니다. bdsk는 둘 다 안 합니다. 전사는 Neural Engine에서 하고, 그 위에 올리는 건 조사 보존 사전과 숫자 표기 선택뿐입니다. 모델 파일을 받지 않습니다. 빠르고, 조사를 남기고, 그다음엔 없습니다.
 
 ## 하는 일
 
 - **조사까지 치환.** `스위프트 데이터로` → `SwiftData로`, `스위프트 데이터에서는` → `SwiftData에서는`. `에서`+`는`처럼 겹친 조사도 이어서 먹습니다. 조사가 아니면 그대로 둡니다 (`스위프트 데이터링`).
+- **숫자 표기 선택.** 엔진이 `1시`처럼 아라비아로 적어도, `한 시`/`1시`를 HUD에서 고른 뒤 넣습니다. 추측해서 바꾸지 않습니다.
 - **온디바이스.** 말이 맥을 떠나지 않습니다.
 - **커서에 바로.** 클립보드에 쌓아두지 않습니다. 필드가 안 바뀌면 붙여넣기 후 클립보드를 되돌립니다.
 - **누르면 녹음.** 짧게 누르면 토글, 길게 누르면 누르는 동안만. 기본 핫키는 Control+Space입니다.
@@ -90,15 +100,15 @@ xcodebuild -project bdsk.xcodeproj -scheme bdsk \
 
 | 경로 | 역할 |
 | --- | --- |
-| `bdsk/App` | 메뉴바, 설정 창, 권한, Command+Tab용 activation policy |
+| `bdsk/App` | 메뉴바, 설정 창, 권한, Command+Tab용 activation policy, 숫자 표기 HUD |
 | `bdsk/Hotkey` | 전역 핫키 (CGEvent tap) |
 | `bdsk/Dictation` | `AVAudioEngine` → SpeechAnalyzer |
-| `bdsk/Lexicon` | 조사 테이블, 치환, `lexicon.json` |
+| `bdsk/Lexicon` | 조사 테이블, 치환, 숫자 표기, `lexicon.json` |
 | `bdsk/Insertion` | AX 삽입, Command+V 폴백 |
 | `bdsk/Settings` | 핫키 녹음, 사전 CRUD |
-| `bdskTests` | `ParticleAwareReplacer` |
+| `bdskTests` | `ParticleAwareReplacer`, `NumberOrthography` |
 | `bench/apple` | SpeechAnalyzer 파일 전사 벤치. 앱 런타임에 넣지 않습니다. |
-| `docs` | README 로고, TypeWhisper 비교 GIF |
+| `docs` | README 로고, TypeWhisper 비교 GIF, 숫자 표기 HUD |
 
 번들 ID는 `dev.bdsk.app`입니다. 시각 언어는 [DESIGN.md](DESIGN.md)에 있습니다.
 
