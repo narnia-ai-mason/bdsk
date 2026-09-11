@@ -112,6 +112,19 @@ enum Permissions {
         openPrivacySettings("Privacy_SpeechRecognition")
     }
 
+    static func openDictationSettings() {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.Keyboard-Settings.extension?Dictation",
+            "x-apple.systempreferences:com.apple.preference.keyboard?Dictation",
+            "x-apple.systempreferences:com.apple.Keyboard-Settings.extension"
+        ]
+        for candidate in candidates {
+            if let url = URL(string: candidate), NSWorkspace.shared.open(url) {
+                return
+            }
+        }
+    }
+
     private static func openPrivacySettings(_ pane: String) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
             NSWorkspace.shared.open(url)

@@ -75,7 +75,7 @@ struct MenuBarContent: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        Text("bdsk · \(model.phase.menuLabel)")
+        Text(menuTitle)
         if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
             Text(version)
                 .foregroundStyle(.secondary)
@@ -106,6 +106,15 @@ struct MenuBarContent: View {
         Button("종료") {
             NSApp.terminate(nil)
         }
+    }
+
+    private var menuTitle: String {
+        #if BDSK_DEV_TOOLS
+        let engine = SpeechAssets.usesModernEngine ? "Analyzer" : "시스템"
+        return "bdsk-dev · \(model.phase.menuLabel) · \(engine)"
+        #else
+        return "bdsk · \(model.phase.menuLabel)"
+        #endif
     }
 
     private var menuActionTitle: String {

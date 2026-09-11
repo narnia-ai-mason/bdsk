@@ -46,6 +46,16 @@ struct FirstRunView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if !SpeechAssets.usesModernEngine {
+                Text("시스템 받아쓰기를 쓰려면 시스템 설정 → 키보드에서 받아쓰기를 켜야 합니다.")
+                    .font(BdskTheme.captionFont())
+                    .foregroundStyle(BdskTheme.pearlMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                BdskGhostButton(title: "받아쓰기 설정 열기") {
+                    Permissions.openDictationSettings()
+                }
+            }
+
             if accessStatus != .granted, Permissions.didPromptAccessibility {
                 Text("손쉬운 사용에서 bdsk를 켠 뒤에는 앱을 한 번 종료했다가 다시 열어 주세요.")
                     .font(BdskTheme.captionFont())
@@ -88,13 +98,13 @@ struct FirstRunView: View {
         if SpeechAssets.usesModernEngine {
             return "마이크, 손쉬운 사용, 그리고 이 맥 안의 한국어 엔진이 필요합니다. 허용과 받기는 기기를 떠나지 않습니다."
         }
-        return "마이크, 손쉬운 사용, 음성 인식이 필요합니다. 이 맥의 받아쓰기 엔진을 씁니다."
+        return "마이크, 손쉬운 사용, 음성 인식이 필요합니다. 이 맥의 받아쓰기 엔진을 쓰려면 시스템 설정에서 받아쓰기도 켜 두세요."
     }
 
     private var engineDetail: String {
         SpeechAssets.usesModernEngine
             ? "macOS가 받아쓰기에 쓰는 자산입니다."
-            : "이 맥에 있는 받아쓰기 엔진을 씁니다."
+            : "시스템 설정 → 키보드에서 받아쓰기를 켠 뒤 씁니다."
     }
 
     private var primaryTitle: String {

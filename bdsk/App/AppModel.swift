@@ -69,6 +69,14 @@ final class AppModel: HybridHotkeyHandling {
             syncListeningHUD()
         }
     }
+    #if BDSK_DEV_TOOLS
+    var speechEnginePreference: SpeechEnginePreference {
+        didSet {
+            SpeechEnginePreference.set(speechEnginePreference)
+            Task { await refreshSpeechAssets() }
+        }
+    }
+    #endif
 
     private let session = DictationSession()
     private let listeningHUD = RecordingHUDController()
@@ -96,6 +104,9 @@ final class AppModel: HybridHotkeyHandling {
         } else {
             showsListeningHUD = UserDefaults.standard.bool(forKey: "showsListeningHUD")
         }
+        #if BDSK_DEV_TOOLS
+        speechEnginePreference = .current
+        #endif
         numberReviewHUD.onCommit = { [weak self] in
             self?.commitNumberReview()
         }

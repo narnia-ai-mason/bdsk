@@ -22,13 +22,64 @@ enum SpeechAssetPhase: Equatable {
     }
 }
 
+enum SpeechEnginePreference: String, CaseIterable, Identifiable {
+    case automatic
+    case modern
+    case legacy
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: return "자동"
+        case .modern: return "SpeechAnalyzer"
+        case .legacy: return "시스템 받아쓰기"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .automatic: return "있으면 SpeechAnalyzer, 없으면 시스템 받아쓰기"
+        case .modern: return "macOS 26 SpeechTranscriber"
+        case .legacy: return "SFSpeechRecognizer. 타호에서도 소노마 경로를 재현합니다."
+        }
+    }
+
+    private static let defaultsKey = "speechEnginePreference"
+
+    static var current: SpeechEnginePreference {
+        #if BDSK_DEV_TOOLS
+        SpeechEnginePreference(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .automatic
+        #else
+        .automatic
+        #endif
+    }
+
+    static func set(_ value: SpeechEnginePreference) {
+        #if BDSK_DEV_TOOLS
+        UserDefaults.standard.set(value.rawValue, forKey: defaultsKey)
+        #endif
+    }
+}
+
 enum SpeechAssets {
     /// Tahoe SpeechTranscriber when the device has it. Otherwise the Sonoma-era recognizer.
+    /// Release builds always follow availability. Dev builds may override.
     static var usesModernEngine: Bool {
-        if #available(macOS 26, *) {
-            return SpeechTranscriber.isAvailable
+        switch SpeechEnginePreference.current {
+        case .legacy:
+            return false
+        case .modern:
+            if #available(macOS 26, *) {
+                return SpeechTranscriber.isAvailable
+            }
+            return false
+        case .automatic:
+            if #available(macOS 26, *) {
+                return SpeechTranscriber.isAvailable
+            }
+            return false
         }
-        return false
     }
 
     static func resolvedKoreanLocale() async throws -> Locale {

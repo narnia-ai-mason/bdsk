@@ -33,6 +33,23 @@ struct PermissionsSettingsPane: View {
                 }
             }
 
+            if !SpeechAssets.usesModernEngine {
+                CeramicCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("키보드 받아쓰기")
+                            .font(BdskTheme.titleFont())
+                            .foregroundStyle(BdskTheme.pearl)
+                        Text("이 맥에서는 시스템 받아쓰기를 씁니다. 시스템 설정 → 키보드에서 받아쓰기를 켜 두어야 합니다.")
+                            .font(BdskTheme.bodyFont())
+                            .foregroundStyle(BdskTheme.pearlMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        BdskGhostButton(title: "받아쓰기 설정 열기") {
+                            Permissions.openDictationSettings()
+                        }
+                    }
+                }
+            }
+
             if accessStatus != .granted {
                 CeramicCard {
                     VStack(alignment: .leading, spacing: 12) {
@@ -67,7 +84,7 @@ struct PermissionsSettingsPane: View {
                 Text(
                     SpeechAssets.usesModernEngine
                         ? "macOS가 받아쓰기에 쓰는 자산입니다. 없으면 받습니다."
-                        : "이 맥에 있는 받아쓰기 엔진을 씁니다."
+                        : "시스템 설정 → 키보드에서 받아쓰기를 켠 뒤 씁니다."
                 )
                     .font(BdskTheme.captionFont())
                     .foregroundStyle(BdskTheme.pearlMuted)

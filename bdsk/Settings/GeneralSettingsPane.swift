@@ -66,6 +66,46 @@ struct GeneralSettingsPane: View {
                     .tint(BdskTheme.lavender)
                 }
             }
+
+            #if BDSK_DEV_TOOLS
+            CeramicCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("엔진 · 개발용")
+                        .font(BdskTheme.titleFont())
+                        .foregroundStyle(BdskTheme.pearl)
+                    Text("정식 빌드에는 없습니다. 타호에서 소노마 경로를 쓰려면 시스템 받아쓰기를 고르세요.")
+                        .font(BdskTheme.bodyFont())
+                        .foregroundStyle(BdskTheme.pearlMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Picker("엔진", selection: $model.speechEnginePreference) {
+                        ForEach(SpeechEnginePreference.allCases) { choice in
+                            Text(choice.title).tag(choice)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(model.speechEnginePreference.detail)
+                        .font(BdskTheme.captionFont())
+                        .foregroundStyle(BdskTheme.pearlMuted)
+                    Text(SpeechAssets.usesModernEngine ? "지금 경로: SpeechAnalyzer" : "지금 경로: 시스템 받아쓰기")
+                        .font(BdskTheme.captionFont())
+                        .foregroundStyle(BdskTheme.lavender)
+                    if model.speechEnginePreference == .modern, !SpeechAssets.usesModernEngine {
+                        Text("이 맥에서 SpeechAnalyzer를 쓸 수 없어 시스템 받아쓰기로 갑니다.")
+                            .font(BdskTheme.captionFont())
+                            .foregroundStyle(BdskTheme.pinkDeep)
+                    }
+                    if !SpeechAssets.usesModernEngine {
+                        Text("시스템 받아쓰기는 시스템 설정 → 키보드에서 받아쓰기를 켜 두어야 합니다.")
+                            .font(BdskTheme.captionFont())
+                            .foregroundStyle(BdskTheme.pearlMuted)
+                        BdskGhostButton(title: "받아쓰기 설정 열기") {
+                            Permissions.openDictationSettings()
+                        }
+                    }
+                }
+            }
+            #endif
         }
     }
 }
