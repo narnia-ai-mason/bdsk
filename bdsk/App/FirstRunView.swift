@@ -15,7 +15,7 @@ struct FirstRunView: View {
                 Text("받아쓰기를 쓸 준비를 합니다")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(BdskTheme.pearl)
-                Text("마이크, 손쉬운 사용, 그리고 이 맥 안의 한국어 엔진이 필요합니다. 허용과 받기는 기기를 떠나지 않습니다.")
+                Text(setupSubtitle)
                     .font(BdskTheme.bodyFont())
                     .foregroundStyle(BdskTheme.pearlMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -24,9 +24,9 @@ struct FirstRunView: View {
             CeramicCard {
                 VStack(alignment: .leading, spacing: 18) {
                     statusRow(title: "마이크", detail: "말하는 소리를 듣습니다.", status: micStatus.label)
-                    statusRow(title: "음성 인식", detail: "기기 안에서 말을 글자로 바꿉니다.", status: speechStatus.label)
+                    statusRow(title: "음성 인식", detail: PermissionKind.speech.summary, status: speechStatus.label)
                     statusRow(title: "손쉬운 사용", detail: "핫키와 커서에 글 넣기에 필요합니다.", status: accessStatus.label)
-                    statusRow(title: "한국어 엔진", detail: "macOS가 받아쓰기에 쓰는 자산입니다.", status: model.speechAssetPhase.label)
+                    statusRow(title: "한국어 엔진", detail: engineDetail, status: model.speechAssetPhase.label)
                 }
             }
 
@@ -82,6 +82,19 @@ struct FirstRunView: View {
             Task { await model.refreshSpeechAssets() }
             model.refreshHotkeyMonitor()
         }
+    }
+
+    private var setupSubtitle: String {
+        if SpeechAssets.usesModernEngine {
+            return "마이크, 손쉬운 사용, 그리고 이 맥 안의 한국어 엔진이 필요합니다. 허용과 받기는 기기를 떠나지 않습니다."
+        }
+        return "마이크, 손쉬운 사용, 음성 인식이 필요합니다. 이 맥의 받아쓰기 엔진을 씁니다."
+    }
+
+    private var engineDetail: String {
+        SpeechAssets.usesModernEngine
+            ? "macOS가 받아쓰기에 쓰는 자산입니다."
+            : "이 맥에 있는 받아쓰기 엔진을 씁니다."
     }
 
     private var primaryTitle: String {

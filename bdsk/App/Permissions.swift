@@ -33,7 +33,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .microphone: return "말하는 소리를 듣습니다."
-        case .speech: return "기기 안에서 말을 글자로 바꿉니다."
+        case .speech: return "말을 글자로 바꿉니다."
         case .accessibility: return "핫키와 커서에 글 넣기에 필요합니다."
         }
     }

@@ -23,7 +23,58 @@ enum SpeechAssetPhase: Equatable {
 }
 
 enum SpeechAssets {
+    /// Tahoe SpeechTranscriber when the device has it. Otherwise the Sonoma-era recognizer.
+    static var usesModernEngine: Bool {
+        if #available(macOS 26, *) {
+            return SpeechTranscriber.isAvailable
+        }
+        return false
+    }
+
     static func resolvedKoreanLocale() async throws -> Locale {
+        if #available(macOS 26, *), usesModernEngine {
+            return try await resolvedModernKoreanLocale()
+        }
+        return try resolvedLegacyKoreanLocale()
+    }
+
+    static func retainKoreanReservation() async {
+        guard #available(macOS 26, *), usesModernEngine else { return }
+        guard let locale = try? await resolvedModernKoreanLocale() else { return }
+        _ = try? await AssetInventory.reserve(locale: locale)
+    }
+
+    static func phase() async -> SpeechAssetPhase {
+        if #available(macOS 26, *), usesModernEngine {
+            return await modernPhase()
+        }
+        return legacyPhase()
+    }
+
+    static func isInstalled() async -> Bool {
+        await phase() == .ready
+    }
+
+    static func ensureInstalled(onProgress: @MainActor @escaping (Double) -> Void) async throws {
+        if #available(macOS 26, *), usesModernEngine {
+            try await ensureModernInstalled(onProgress: onProgress)
+            return
+        }
+        await onProgress(1)
+    }
+
+    @available(macOS 26, *)
+    static func transcriber(locale: Locale) -> SpeechTranscriber {
+        SpeechTranscriber(
+            locale: locale,
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults],
+            attributeOptions: []
+        )
+    }
+
+    @available(macOS 26, *)
+    private static func resolvedModernKoreanLocale() async throws -> Locale {
         let requested = Locale(identifier: "ko-KR")
         if let resolved = await SpeechTranscriber.supportedLocale(equivalentTo: requested) {
             return resolved
@@ -42,28 +93,19 @@ enum SpeechAssets {
         throw DictationSessionError.localeUnsupported
     }
 
-    static func transcriber(locale: Locale) -> SpeechTranscriber {
-        SpeechTranscriber(
-            locale: locale,
-            transcriptionOptions: [],
-            reportingOptions: [.volatileResults],
-            attributeOptions: []
-        )
+    private static func resolvedLegacyKoreanLocale() throws -> Locale {
+        let requested = Locale(identifier: "ko-KR")
+        if SFSpeechRecognizer(locale: requested) != nil {
+            return requested
+        }
+        throw DictationSessionError.localeUnsupported
     }
 
-    /// Keep the Korean locale reserved so the system does not evict the model.
-    /// `AssetInventory.status` reports `.supported` (not `.installed`) while unreserved,
-    /// even when the files are already on disk.
-    static func retainKoreanReservation() async {
-        guard let locale = try? await resolvedKoreanLocale() else { return }
-        _ = try? await AssetInventory.reserve(locale: locale)
-    }
-
-    static func phase() async -> SpeechAssetPhase {
-        guard SpeechTranscriber.isAvailable else { return .unsupported }
+    @available(macOS 26, *)
+    private static func modernPhase() async -> SpeechAssetPhase {
         let locale: Locale
         do {
-            locale = try await resolvedKoreanLocale()
+            locale = try await resolvedModernKoreanLocale()
         } catch {
             return .unsupported
         }
@@ -82,12 +124,13 @@ enum SpeechAssets {
         }
     }
 
-    static func isInstalled() async -> Bool {
-        await phase() == .ready
+    private static func legacyPhase() -> SpeechAssetPhase {
+        SFSpeechRecognizer(locale: Locale(identifier: "ko-KR")) == nil ? .unsupported : .ready
     }
 
-    static func ensureInstalled(onProgress: @MainActor @escaping (Double) -> Void) async throws {
-        let locale = try await resolvedKoreanLocale()
+    @available(macOS 26, *)
+    private static func ensureModernInstalled(onProgress: @MainActor @escaping (Double) -> Void) async throws {
+        let locale = try await resolvedModernKoreanLocale()
         _ = try? await AssetInventory.reserve(locale: locale)
         let transcriber = transcriber(locale: locale)
         guard let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) else {
@@ -107,6 +150,7 @@ enum SpeechAssets {
         await onProgress(1)
     }
 
+    @available(macOS 26, *)
     private static func isKoreanOnDisk() async -> Bool {
         await SpeechTranscriber.installedLocales.contains(where: isKorean)
     }

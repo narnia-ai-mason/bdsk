@@ -64,7 +64,11 @@ struct PermissionsSettingsPane: View {
                 Text("한국어 엔진")
                     .font(BdskTheme.labelFont())
                     .foregroundStyle(BdskTheme.pearl)
-                Text("macOS가 받아쓰기에 쓰는 자산입니다. 없으면 받습니다.")
+                Text(
+                    SpeechAssets.usesModernEngine
+                        ? "macOS가 받아쓰기에 쓰는 자산입니다. 없으면 받습니다."
+                        : "이 맥에 있는 받아쓰기 엔진을 씁니다."
+                )
                     .font(BdskTheme.captionFont())
                     .foregroundStyle(BdskTheme.pearlMuted)
                 Text(model.speechAssetPhase.label)
