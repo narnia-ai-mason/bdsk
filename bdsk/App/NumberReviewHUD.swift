@@ -3,6 +3,34 @@ import Carbon.HIToolbox
 import QuartzCore
 import SwiftUI
 
+/// Keys the number-review HUD claims while it is visible.
+/// Matched on the hotkey tap thread so Tab/Return never reach the original field
+/// and the HUD never has to become key.
+enum NumberReviewKeys {
+    static func intercepts(keyCode: Int, flags: NSEvent.ModifierFlags) -> Bool {
+        let mods = flags.intersection(.deviceIndependentFlagsMask)
+        let withoutShift = mods.subtracting([.shift, .capsLock, .numericPad, .function, .help])
+        guard withoutShift.isEmpty else { return false }
+        switch keyCode {
+        case kVK_Escape, kVK_Return, kVK_ANSI_KeypadEnter,
+             kVK_UpArrow, kVK_DownArrow, kVK_Tab,
+             kVK_LeftArrow, kVK_RightArrow:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func allowsRepeat(_ keyCode: Int) -> Bool {
+        switch keyCode {
+        case kVK_UpArrow, kVK_DownArrow, kVK_LeftArrow, kVK_RightArrow:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class NumberReviewModel {
@@ -123,15 +151,43 @@ final class NumberReviewHUDController {
         }
     }
 
+    /// Handle a review key already identified by `NumberReviewKeys`.
+    @discardableResult
+    func handleKey(keyCode: Int, flags: NSEvent.ModifierFlags) -> Bool {
+        guard let model else { return false }
+
+        switch keyCode {
+        case kVK_Escape:
+            onCancel?()
+            return true
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            onCommit?()
+            return true
+        case kVK_UpArrow:
+            model.moveFocus(-1)
+            return true
+        case kVK_DownArrow:
+            model.moveFocus(1)
+            return true
+        case kVK_Tab:
+            model.moveFocus(flags.contains(.shift) ? -1 : 1)
+            return true
+        case kVK_LeftArrow:
+            model.setFocusedPrefersNative(false)
+            return true
+        case kVK_RightArrow:
+            model.setFocusedPrefersNative(true)
+            return true
+        default:
+            return false
+        }
+    }
+
     private func present(_ panel: NumberReviewHUDPanel) {
         panel.alphaValue = 0
-        // Become key so arrows/Tab/ESC reach us — but keep an empty key-view loop so
-        // Tab never walks AppKit focus out of the original text field’s app permanently.
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
-        if let hostingView {
-            panel.makeFirstResponder(hostingView)
-        }
+        // Do not become key. The original field must keep focus so insert/paste
+        // land where recording started. Review keys are swallowed by the session tap.
+        panel.orderFrontRegardless()
         installKeyMonitor()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.28
@@ -158,34 +214,10 @@ final class NumberReviewHUDController {
     /// Returns `true` when the event was consumed by the review HUD.
     @discardableResult
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard let model else { return false }
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-
-        switch Int(event.keyCode) {
-        case kVK_Escape:
-            onCancel?()
-            return true
-        case kVK_Return, kVK_ANSI_KeypadEnter:
-            onCommit?()
-            return true
-        case kVK_UpArrow:
-            model.moveFocus(-1)
-            return true
-        case kVK_DownArrow:
-            model.moveFocus(1)
-            return true
-        case kVK_Tab:
-            model.moveFocus(flags.contains(.shift) ? -1 : 1)
-            return true
-        case kVK_LeftArrow:
-            model.setFocusedPrefersNative(false)
-            return true
-        case kVK_RightArrow:
-            model.setFocusedPrefersNative(true)
-            return true
-        default:
-            return false
-        }
+        handleKey(
+            keyCode: Int(event.keyCode),
+            flags: event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        )
     }
 
     private func repositionIfVisible() {
@@ -218,25 +250,21 @@ final class NumberReviewHUDController {
 }
 
 private final class NumberReviewHostingView: NSHostingView<NumberReviewHUDView> {
-    override var acceptsFirstResponder: Bool { true }
-    override var canBecomeKeyView: Bool { true }
-
-    override func becomeFirstResponder() -> Bool {
-        true
-    }
+    override var acceptsFirstResponder: Bool { false }
+    override var canBecomeKeyView: Bool { false }
 }
 
 private final class NumberReviewHUDPanel: NSPanel {
     var keyHandler: ((NSEvent) -> Bool)?
     var focusMover: ((Int) -> Void)?
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 140),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
         )
@@ -247,7 +275,7 @@ private final class NumberReviewHUDPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .transient, .ignoresCycle]
         isFloatingPanel = true
         hidesOnDeactivate = false
-        becomesKeyOnlyIfNeeded = false
+        becomesKeyOnlyIfNeeded = true
         animationBehavior = .none
         isReleasedWhenClosed = false
         ignoresMouseEvents = false

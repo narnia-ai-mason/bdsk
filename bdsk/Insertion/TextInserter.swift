@@ -32,8 +32,7 @@ enum TextInserter {
         return (element as! AXUIElement)
     }
 
-    /// Bring the element’s app forward and focus the field so paste/AX insert lands correctly
-    /// after bdsk briefly became key for the number-review HUD.
+    /// Bring the element’s app forward and focus the field so paste/AX insert lands correctly.
     @discardableResult
     static func focus(_ element: AXUIElement?) -> Bool {
         guard let element else { return false }
@@ -52,13 +51,55 @@ enum TextInserter {
         return focused == .success
     }
 
+    /// No-op when the captured app is already frontmost. Otherwise activate and wait
+    /// briefly so AX insert / Cmd+V are not posted into the void.
+    static func ensureReady(_ element: AXUIElement?, timeoutMs: Int = 400) async {
+        guard let element else { return }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success,
+              let app = NSRunningApplication(processIdentifier: pid)
+        else {
+            return
+        }
+        if app.isActive {
+            _ = AXUIElementSetAttributeValue(
+                element,
+                kAXFocusedAttribute as CFString,
+                kCFBooleanTrue
+            )
+            return
+        }
+        app.activate(options: [.activateIgnoringOtherApps])
+        let deadline = ContinuousClock.now + .milliseconds(timeoutMs)
+        while ContinuousClock.now < deadline {
+            if let current = NSRunningApplication(processIdentifier: pid), current.isActive {
+                _ = AXUIElementSetAttributeValue(
+                    element,
+                    kAXFocusedAttribute as CFString,
+                    kCFBooleanTrue
+                )
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(16))
+            if !app.isActive {
+                app.activate(options: [.activateIgnoringOtherApps])
+            }
+        }
+        _ = AXUIElementSetAttributeValue(
+            element,
+            kAXFocusedAttribute as CFString,
+            kCFBooleanTrue
+        )
+    }
+
     static func insert(_ text: String, into storedElement: AXUIElement?) -> InsertionOutcome {
         guard !text.isEmpty else { return .failed("빈 텍스트") }
 
-        if let element = storedElement ?? focusedElement() {
-            if insertViaAccessibility(text, into: element) {
-                return .insertedViaAccessibility
-            }
+        if let element = storedElement, insertViaAccessibility(text, into: element) {
+            return .insertedViaAccessibility
+        }
+        if let live = focusedElement(), insertViaAccessibility(text, into: live) {
+            return .insertedViaAccessibility
         }
 
         if focusedElement() == nil {
@@ -66,7 +107,7 @@ enum TextInserter {
             return .copiedToClipboard
         }
 
-        if paste(text) {
+        if paste(text, into: storedElement ?? focusedElement()) {
             return .pasted
         }
         copyToClipboard(text)
@@ -97,7 +138,7 @@ enum TextInserter {
         return false
     }
 
-    private static func paste(_ text: String) -> Bool {
+    private static func paste(_ text: String, into element: AXUIElement?) -> Bool {
         let pasteboard = NSPasteboard.general
         let snapshot = snapshotClipboard(pasteboard)
         pasteboard.clearContents()
@@ -109,10 +150,17 @@ enum TextInserter {
         let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         down?.flags = .maskCommand
         up?.flags = .maskCommand
-        down?.post(tap: .cghidEventTap)
-        up?.post(tap: .cghidEventTap)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        var pid: pid_t = 0
+        if let element, AXUIElementGetPid(element, &pid) == .success {
+            down?.postToPid(pid)
+            up?.postToPid(pid)
+        } else {
+            down?.post(tap: .cghidEventTap)
+            up?.post(tap: .cghidEventTap)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             restoreClipboard(snapshot, to: pasteboard)
         }
         return true

@@ -5,6 +5,7 @@ import Foundation
 protocol HybridHotkeyHandling: AnyObject {
     func hotkeyPressed()
     func hotkeyReleased()
+    func reviewKeyDown(keyCode: Int, flags: NSEvent.ModifierFlags)
 }
 
 final class HybridHotkeyMonitor: @unchecked Sendable {
@@ -18,6 +19,7 @@ final class HybridHotkeyMonitor: @unchecked Sendable {
     private let lock = NSLock()
     private var running = false
     private var threadExited: DispatchSemaphore?
+    private var interceptReviewKeys = false
 
     init(binding: HotkeyBinding) {
         self.binding = binding
@@ -26,6 +28,12 @@ final class HybridHotkeyMonitor: @unchecked Sendable {
     func update(binding: HotkeyBinding) {
         self.binding = binding
         pressed = false
+    }
+
+    func setInterceptsReviewKeys(_ intercept: Bool) {
+        lock.lock()
+        interceptReviewKeys = intercept
+        lock.unlock()
     }
 
     @discardableResult
@@ -100,6 +108,7 @@ final class HybridHotkeyMonitor: @unchecked Sendable {
         thread = nil
         threadExited = nil
         pressed = false
+        interceptReviewKeys = false
         lock.unlock()
 
         if let tap, CFMachPortIsValid(tap) {
@@ -144,27 +153,49 @@ final class HybridHotkeyMonitor: @unchecked Sendable {
             CGEvent.tapEnable(tap: tap, enable: true)
             return Unmanaged.passUnretained(event)
         }
-        guard binding.matches(event: event) else {
-            return Unmanaged.passUnretained(event)
-        }
-        if event.getIntegerValueField(.keyboardEventAutorepeat) == 1 {
+        if binding.matches(event: event) {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 1 {
+                return nil
+            }
+            let down = binding.isKeyDown(event: event)
+            if down {
+                guard !pressed else { return nil }
+                pressed = true
+                DispatchQueue.main.async { [weak self] in
+                    self?.handler?.hotkeyPressed()
+                }
+            } else {
+                guard pressed else { return nil }
+                pressed = false
+                DispatchQueue.main.async { [weak self] in
+                    self?.handler?.hotkeyReleased()
+                }
+            }
             return nil
         }
-        let down = binding.isKeyDown(event: event)
-        if down {
-            guard !pressed else { return nil }
-            pressed = true
+        if type == .keyDown, shouldInterceptReviewKey(event) {
+            return nil
+        }
+        return Unmanaged.passUnretained(event)
+    }
+
+    private func shouldInterceptReviewKey(_ event: CGEvent) -> Bool {
+        lock.lock()
+        let intercept = interceptReviewKeys
+        lock.unlock()
+        guard intercept else { return false }
+
+        let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
+        guard NumberReviewKeys.intercepts(keyCode: keyCode, flags: flags) else { return false }
+
+        let repeats = event.getIntegerValueField(.keyboardEventAutorepeat) == 1
+        if !repeats || NumberReviewKeys.allowsRepeat(keyCode) {
             DispatchQueue.main.async { [weak self] in
-                self?.handler?.hotkeyPressed()
-            }
-        } else {
-            guard pressed else { return nil }
-            pressed = false
-            DispatchQueue.main.async { [weak self] in
-                self?.handler?.hotkeyReleased()
+                self?.handler?.reviewKeyDown(keyCode: keyCode, flags: flags)
             }
         }
-        return nil
+        return true
     }
 
     deinit {

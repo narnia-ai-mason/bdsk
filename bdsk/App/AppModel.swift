@@ -108,7 +108,7 @@ final class AppModel: HybridHotkeyHandling {
         speechEnginePreference = .current
         #endif
         numberReviewHUD.onCommit = { [weak self] in
-            self?.commitNumberReview()
+            Task { await self?.commitNumberReviewAndInsert() }
         }
         numberReviewHUD.onCancel = { [weak self] in
             self?.cancelNumberReview()
@@ -211,10 +211,14 @@ final class AppModel: HybridHotkeyHandling {
         case .recordingToggle:
             Task { await finishRecording() }
         case .reviewingNumbers:
-            commitNumberReview()
+            Task { await commitNumberReviewAndInsert() }
         case .recordingHold, .finishing:
             break
         }
+    }
+
+    func reviewKeyDown(keyCode: Int, flags: NSEvent.ModifierFlags) {
+        numberReviewHUD.handleKey(keyCode: keyCode, flags: flags)
     }
 
     func hotkeyReleased() {
@@ -237,7 +241,7 @@ final class AppModel: HybridHotkeyHandling {
     func toggleFromMenu() {
         switch phase {
         case .reviewingNumbers:
-            commitNumberReview()
+            Task { await commitNumberReviewAndInsert() }
         case .starting, .recordingToggle, .recordingHold:
             Task { await finishRecording() }
         case .idle:
@@ -254,7 +258,7 @@ final class AppModel: HybridHotkeyHandling {
 
     private func beginRecording() async {
         if phase == .reviewingNumbers {
-            commitNumberReview()
+            await commitNumberReviewAndInsert()
         }
         guard phase == .idle else { return }
         phase = .starting
@@ -325,6 +329,7 @@ final class AppModel: HybridHotkeyHandling {
                     partialText = ""
                     listeningHUD.setAmplitude(0)
                     syncListeningHUD()
+                    monitor?.setInterceptsReviewKeys(true)
                     numberReviewHUD.show(baseText: corrected, choices: choices)
                     lastMessage = "숫자 표기를 고른 뒤 넣으세요."
                 }
@@ -336,15 +341,16 @@ final class AppModel: HybridHotkeyHandling {
         }
     }
 
-    private func commitNumberReview() {
+    private func commitNumberReviewAndInsert() async {
         guard phase == .reviewingNumbers, let base = pendingNumberText else { return }
         let choices = numberReviewHUD.currentChoices() ?? NumberOrthography.findChoices(in: base)
         let resolved = NumberOrthography.apply(choices, to: base)
         let target = capturedElement
-        numberReviewHUD.hide()
+        phase = .finishing
         pendingNumberText = nil
-        // HUD stole key focus for keyboard navigation — put it back before insert/paste.
-        TextInserter.focus(target)
+        monitor?.setInterceptsReviewKeys(false)
+        numberReviewHUD.hide()
+        await TextInserter.ensureReady(target)
         insertTranscript(resolved)
         endSessionCleanup()
     }
@@ -353,10 +359,9 @@ final class AppModel: HybridHotkeyHandling {
         guard phase == .reviewingNumbers else { return }
         let target = capturedElement
         numberReviewHUD.hide()
-        pendingNumberText = nil
-        TextInserter.focus(target)
         lastMessage = "숫자 표기를 취소했습니다."
         endSessionCleanup()
+        Task { await TextInserter.ensureReady(target) }
     }
 
     private func insertTranscript(_ corrected: String) {
@@ -372,6 +377,7 @@ final class AppModel: HybridHotkeyHandling {
     }
 
     private func endSessionCleanup() {
+        monitor?.setInterceptsReviewKeys(false)
         numberReviewHUD.hide()
         pendingNumberText = nil
         capturedElement = nil
