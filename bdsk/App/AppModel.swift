@@ -69,6 +69,10 @@ final class AppModel: HybridHotkeyHandling {
             syncListeningHUD()
         }
     }
+    var audioInputUID: String
+    var audioInputName: String
+    var audioInputDevices: [AudioInput.Device] = []
+    var defaultAudioInput: AudioInput.Device?
     #if BDSK_DEV_TOOLS
     var speechEnginePreference: SpeechEnginePreference {
         didSet {
@@ -88,6 +92,7 @@ final class AppModel: HybridHotkeyHandling {
     private var releasedBeforeReady = false
     private var stillHolding = false
     private var pendingFinish = false
+    private var audioInputObservation: AudioInputObservation?
 
     init() {
         if let data = UserDefaults.standard.data(forKey: "hotkey"),
@@ -107,6 +112,12 @@ final class AppModel: HybridHotkeyHandling {
         #if BDSK_DEV_TOOLS
         speechEnginePreference = .current
         #endif
+        audioInputUID = AudioInputPreference.uid
+        audioInputName = AudioInputPreference.name
+        refreshAudioInputs()
+        audioInputObservation = AudioInput.observeChanges { [weak self] in
+            self?.refreshAudioInputs()
+        }
         numberReviewHUD.onCommit = { [weak self] in
             Task { await self?.commitNumberReviewAndInsert() }
         }
@@ -148,6 +159,50 @@ final class AppModel: HybridHotkeyHandling {
 
     func dismissSetupForSession() {
         dismissedSetupThisSession = true
+    }
+
+    var systemDefaultInputSubtitle: String? {
+        guard let defaultAudioInput else { return nil }
+        if defaultAudioInput.transport.opensHandsFree {
+            return "지금 \(defaultAudioInput.name) · 직접 고르기 전엔 쓰지 않음"
+        }
+        return "지금 \(defaultAudioInput.name)"
+    }
+
+    var isPreferredAudioInputMissing: Bool {
+        !audioInputUID.isEmpty && AudioInput.resolve(uid: audioInputUID, devices: audioInputDevices) == nil
+    }
+
+    var isPreferredAudioInputBluetooth: Bool {
+        audioInputDevices.first { $0.uid == audioInputUID }?.transport.opensHandsFree == true
+    }
+
+    func refreshAudioInputs() {
+        guard !phase.isRecording else { return }
+        let devices = AudioInput.devices()
+        let defaultDevice = AudioInput.defaultDevice()
+        if devices != audioInputDevices {
+            audioInputDevices = devices
+        }
+        if defaultDevice != defaultAudioInput {
+            defaultAudioInput = defaultDevice
+        }
+        if let device = AudioInput.resolve(uid: audioInputUID, devices: devices),
+           device.name != audioInputName
+        {
+            audioInputName = device.name
+            AudioInputPreference.set(uid: audioInputUID, name: audioInputName)
+        }
+    }
+
+    func setAudioInput(uid: String) {
+        audioInputUID = uid
+        if uid.isEmpty {
+            audioInputName = ""
+        } else if let device = audioInputDevices.first(where: { $0.uid == uid }) {
+            audioInputName = device.name
+        }
+        AudioInputPreference.set(uid: audioInputUID, name: audioInputName)
     }
 
     func refreshSpeechAssets() async {
@@ -388,6 +443,7 @@ final class AppModel: HybridHotkeyHandling {
         partialText = ""
         listeningHUD.setAmplitude(0)
         phase = .idle
+        refreshAudioInputs()
     }
 
     private func syncListeningHUD() {

@@ -29,6 +29,45 @@ struct GeneralSettingsPane: View {
 
             CeramicCard {
                 VStack(alignment: .leading, spacing: 16) {
+                    Text("입력")
+                        .font(BdskTheme.titleFont())
+                        .foregroundStyle(BdskTheme.pearl)
+                    Text("받아쓰기에 쓸 마이크입니다. 블루투스 이어폰이 기본이 되어도, 그 마이크는 직접 고를 때만 엽니다.")
+                        .font(BdskTheme.bodyFont())
+                        .foregroundStyle(BdskTheme.pearlMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        audioInputRow(
+                            title: "시스템 기본",
+                            subtitle: model.systemDefaultInputSubtitle,
+                            selected: model.audioInputUID.isEmpty
+                        ) {
+                            model.setAudioInput(uid: AudioInputPreference.systemDefaultUID)
+                        }
+                        ForEach(model.audioInputDevices) { device in
+                            audioInputRow(
+                                title: device.name,
+                                subtitle: device.transport.label,
+                                selected: model.audioInputUID == device.uid
+                            ) {
+                                model.setAudioInput(uid: device.uid)
+                            }
+                        }
+                    }
+                    if model.isPreferredAudioInputMissing {
+                        Text("저장한 마이크가 빠져 있어 시스템 기본을 씁니다.")
+                            .font(BdskTheme.captionFont())
+                            .foregroundStyle(BdskTheme.pinkDeep)
+                    } else if model.isPreferredAudioInputBluetooth {
+                        Text("이 마이크를 쓰면 이어폰이 통화 모드로 바뀝니다.")
+                            .font(BdskTheme.captionFont())
+                            .foregroundStyle(BdskTheme.pearlMuted)
+                    }
+                }
+            }
+
+            CeramicCard {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("길게 누르기 기준")
                         .font(BdskTheme.titleFont())
                         .foregroundStyle(BdskTheme.pearl)
@@ -107,5 +146,43 @@ struct GeneralSettingsPane: View {
             }
             #endif
         }
+    }
+
+    private func audioInputRow(
+        title: String,
+        subtitle: String?,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(BdskTheme.labelFont())
+                        .foregroundStyle(BdskTheme.pearl)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(BdskTheme.captionFont())
+                            .foregroundStyle(BdskTheme.pearlMuted)
+                    }
+                }
+                Spacer(minLength: 8)
+                if selected {
+                    Circle()
+                        .fill(BdskTheme.lavender)
+                        .frame(width: 8, height: 8)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(selected ? BdskTheme.surfaceRaised : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: BdskTheme.radiusChip, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: BdskTheme.radiusChip, style: .continuous)
+                    .stroke(selected ? BdskTheme.lavender : Color.clear, lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

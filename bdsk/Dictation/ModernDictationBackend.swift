@@ -6,7 +6,7 @@ import Speech
 @MainActor
 final class ModernDictationBackend: DictationBackend {
     private(set) var partialText = ""
-    private var engine: AVAudioEngine?
+    private var capture: AudioInputCapture?
     private var analyzer: SpeechAnalyzer?
     private var transcriber: SpeechTranscriber?
     private var continuation: AsyncStream<AnalyzerInput>.Continuation?
@@ -44,30 +44,13 @@ final class ModernDictationBackend: DictationBackend {
         }
         try await analyzer.setContext(context)
 
-        guard AVCaptureDevice.default(for: .audio) != nil else {
-            throw DictationSessionError.noAudioInput
-        }
-
-        // Access inputNode before prepare/start. Otherwise AVAudioEngine raises
-        // "inputNode != nullptr || outputNode != nullptr" on macOS.
-        let engine = AVAudioEngine()
-        let input = engine.inputNode
-        engine.prepare()
-        try engine.start()
-        var micFormat = input.outputFormat(forBus: 0)
-        if micFormat.sampleRate <= 0 || micFormat.channelCount <= 0 {
-            try await Task.sleep(for: .milliseconds(80))
-            micFormat = input.outputFormat(forBus: 0)
-        }
-        guard micFormat.sampleRate > 0, micFormat.channelCount > 0 else {
-            engine.stop()
-            throw DictationSessionError.formatUnavailable
-        }
+        let capture = try AudioInput.startCapture()
+        let micFormat = capture.format
         guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
             compatibleWith: [transcriber],
             considering: micFormat
         ) else {
-            engine.stop()
+            capture.stop()
             throw DictationSessionError.formatUnavailable
         }
 
@@ -75,7 +58,7 @@ final class ModernDictationBackend: DictationBackend {
         self.continuation = streamParts.continuation
         self.analyzer = analyzer
         self.transcriber = transcriber
-        self.engine = engine
+        self.capture = capture
         self.onPartial = onPartial
         self.onLevel = onLevel
         levelEnvelope.reset()
@@ -113,7 +96,7 @@ final class ModernDictationBackend: DictationBackend {
         let continuation = streamParts.continuation
         let envelope = levelEnvelope
         let reportLevel = onLevel
-        input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { buffer, _ in
+        capture.installTap { buffer in
             if let converted = converter.convert(buffer, to: analyzerFormat) {
                 continuation.yield(AnalyzerInput(buffer: converted))
             }
@@ -127,8 +110,7 @@ final class ModernDictationBackend: DictationBackend {
 
     func stop() async throws -> String {
         guard analyzer != nil else { throw DictationSessionError.notRunning }
-        engine?.inputNode.removeTap(onBus: 0)
-        engine?.stop()
+        capture?.stop()
         continuation?.finish()
         if let analyzer {
             try await analyzer.finalizeAndFinishThroughEndOfInput()
@@ -141,8 +123,7 @@ final class ModernDictationBackend: DictationBackend {
     }
 
     func cancel() async {
-        engine?.inputNode.removeTap(onBus: 0)
-        engine?.stop()
+        capture?.stop()
         continuation?.finish()
         if let analyzer {
             await analyzer.cancelAndFinishNow()
@@ -152,7 +133,8 @@ final class ModernDictationBackend: DictationBackend {
     }
 
     private func teardown() async {
-        engine = nil
+        capture?.stop()
+        capture = nil
         analyzer = nil
         transcriber = nil
         continuation = nil

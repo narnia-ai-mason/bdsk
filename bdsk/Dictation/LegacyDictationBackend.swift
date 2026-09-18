@@ -5,7 +5,7 @@ import Speech
 @MainActor
 final class LegacyDictationBackend: DictationBackend {
     private(set) var partialText = ""
-    private var engine: AVAudioEngine?
+    private var capture: AudioInputCapture?
     private var recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
@@ -31,10 +31,6 @@ final class LegacyDictationBackend: DictationBackend {
         guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
             throw DictationSessionError.localeUnsupported
         }
-        guard AVCaptureDevice.default(for: .audio) != nil else {
-            throw DictationSessionError.noAudioInput
-        }
-
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.taskHint = .dictation
@@ -44,23 +40,11 @@ final class LegacyDictationBackend: DictationBackend {
             request.contextualStrings = limited
         }
 
-        let engine = AVAudioEngine()
-        let input = engine.inputNode
-        engine.prepare()
-        try engine.start()
-        var micFormat = input.outputFormat(forBus: 0)
-        if micFormat.sampleRate <= 0 || micFormat.channelCount <= 0 {
-            try await Task.sleep(for: .milliseconds(80))
-            micFormat = input.outputFormat(forBus: 0)
-        }
-        guard micFormat.sampleRate > 0, micFormat.channelCount > 0 else {
-            engine.stop()
-            throw DictationSessionError.formatUnavailable
-        }
+        let capture = try AudioInput.startCapture()
 
         self.recognizer = recognizer
         self.request = request
-        self.engine = engine
+        self.capture = capture
         self.onPartial = onPartial
         self.onLevel = onLevel
         latest = ""
@@ -76,7 +60,7 @@ final class LegacyDictationBackend: DictationBackend {
 
         let envelope = levelEnvelope
         let reportLevel = onLevel
-        input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { buffer, _ in
+        capture.installTap { buffer in
             request.append(buffer)
             guard let reportLevel, let peak = envelope.push(AudioLevel.peak(of: buffer)) else { return }
             let value = AudioLevel.normalized(peak)
@@ -143,13 +127,12 @@ final class LegacyDictationBackend: DictationBackend {
     }
 
     private func stopCapture() {
-        engine?.inputNode.removeTap(onBus: 0)
-        engine?.stop()
+        capture?.stop()
     }
 
     private func teardown() async {
         stopCapture()
-        engine = nil
+        capture = nil
         recognizer = nil
         request = nil
         task = nil
