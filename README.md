@@ -116,3 +116,7 @@ xcodebuild -project bdsk.xcodeproj -scheme bdsk \
 
 [MIT](LICENSE). Copyright (c) 2026 Mason Seo.
 
+## 블로그 
+
+[mbaicagn](https://mbaicagn.pages.dev/)
+
